@@ -15,6 +15,7 @@ tags: [learning, observability, opslog]
 provides_hooks:
   - pre_tool_call
   - post_tool_call
+  - post_api_request
 config_schema:
   opslog_dir:
     type: str

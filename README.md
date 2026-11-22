@@ -208,7 +208,7 @@ naar volwaardige leer-episodes.
 
 | Component | Locatie |
 |-----------|---------|
-| **Hermes plugin** | `hermes_plugin/__init__.py` — `pre_tool_call` shadow advice + `post_tool_call` → `opslog.log_operation()` (`source=hermes`) |
+| **Hermes plugin** | `hermes_plugin/__init__.py` — `pre_tool_call` shadow advice + generation capture via `llm_execution` middleware/`post_api_request` + `post_tool_call` → `opslog.log_operation()` (`source=hermes`) |
 | **Automation logger** | `run_log.py` — cron/workflow steps write themselves (`source=automation`) |
 | **Consolidator** | `consolidate_ops.py` — ruwe log → episode + reward |
 | **Live log** | `store/operations.jsonl` (append-only) |
@@ -257,6 +257,9 @@ are Track B and only stored after the fetch.
 
 Enabling the plugin is the opt-in. Tool-call success (`status == ok`) is not
 user-task success; metadata stores `tool_ok` and `task_success=false`.
+When available, OpenRouter generation IDs are correlated per `api_request_id`
+and stored as both top-level `generation_ids` and
+`metadata.generation_ids` in `operations.jsonl`.
 
 ### Installatie
 

@@ -36,6 +36,19 @@ def test_log_operation_writes_jsonl(tmp_path, monkeypatch):
     assert entry["request_latency_ms"] == 3100
 
 
+def test_log_operation_writes_generation_ids_top_level(tmp_path, monkeypatch):
+    log_path = tmp_path / "operations.jsonl"
+    monkeypatch.setattr(opslog, "STORE_DIR", str(tmp_path))
+    monkeypatch.setattr(opslog, "OPSLOG_PATH", str(log_path))
+    opslog.log_operation(
+        task_id="llm",
+        action_id="mcp_openrouter_send_message",
+        generation_ids=["gen-1", "gen-2", "gen-1", ""],
+    )
+    entry = json.loads(log_path.read_text().strip())
+    assert entry["generation_ids"] == ["gen-1", "gen-2"]
+
+
 def test_log_operation_accepts_operational_context(tmp_path, monkeypatch):
     log_path = tmp_path / "operations.jsonl"
     monkeypatch.setattr(opslog, "STORE_DIR", str(tmp_path))

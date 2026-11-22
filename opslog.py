@@ -251,6 +251,7 @@ def log_operation(
     execution_mode: str = "",
     parent_run_id: str = "",
     skills_involved: Optional[list[str]] = None,
+    generation_ids: Optional[list[str]] = None,
 ):
     """Log één operatie naar operations.jsonl (append-only)."""
     from workflow_identity import operation_context
@@ -263,6 +264,12 @@ def log_operation(
         parent_run_id=parent_run_id,
         skills_involved=skills_involved or [],
     )
+    normalized_generation_ids: list[str] = []
+    for gid in generation_ids or []:
+        text = str(gid or "").strip()
+        if text and text not in normalized_generation_ids:
+            normalized_generation_ids.append(text)
+
     entry = {
         "id": str(uuid.uuid4()),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -283,6 +290,8 @@ def log_operation(
         },
         "context_features": context_features or {},
     }
+    if normalized_generation_ids:
+        entry["generation_ids"] = normalized_generation_ids
 
     def _append():
         with open(OPSLOG_PATH, "a", encoding="utf-8") as f:

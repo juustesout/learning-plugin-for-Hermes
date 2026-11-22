@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Optional
 
@@ -40,16 +41,20 @@ DEFAULT_TASK_ID = "hermes-tool"
 HOOKS_REGISTERED: dict[str, bool] = {
     "pre_tool_call": False,
     "post_tool_call": False,
+    "post_api_request": False,
+    "llm_execution_middleware": False,
 }
 _SUMMARY_MAX = 500
 _TARGET_MAX = 300
 _TARGET_KEYS = ("url", "uri", "path", "query", "target", "href")
+_GEN_CACHE_MAX = 4096
 _TOOL_TASK = {
     "web_search": "web-research",
     "web_extract": "choose-scrape-strategy",
     "browser_navigate": "choose-scrape-strategy",
     "mcp_webclaw_webclaw_scrape": "choose-scrape-strategy",
 }
+_GENERATION_IDS_BY_API_REQUEST: "OrderedDict[str, list[str]]" = OrderedDict()
 
 
 def logging_enabled() -> bool:
@@ -167,6 +172,7 @@ def build_operation(
     session_id: str = "",
     turn_id: str = "",
     tool_call_id: str = "",
+    api_request_id: str = "",
     **_: Any,
 ) -> Optional[dict]:
     name = str(tool_name or "").strip()
@@ -189,6 +195,10 @@ def build_operation(
         metadata["session_id"] = session_id or ""
         metadata["turn_id"] = turn_id or ""
         metadata["tool_call_id"] = tool_call_id or ""
+        metadata["api_request_id"] = api_request_id or ""
+    generation_ids = _consume_generation_ids(str(api_request_id or "").strip())
+    if generation_ids:
+        metadata["generation_ids"] = generation_ids
     raw_target = ""
     if isinstance(args, dict):
         for key in _TARGET_KEYS:
@@ -222,6 +232,7 @@ def build_operation(
         "action_type": name,
         "context_features": context_features,
         "metadata": metadata,
+        "generation_ids": generation_ids or None,
     }
 
 
@@ -231,6 +242,115 @@ def _health_error(exc: BaseException) -> None:
             opslog.record_health(ok=False, error=str(exc))
     except Exception:
         return
+
+
+def _normalize_generation_id(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) > 200:
+        return ""
+    return text
+
+
+def _collect_generation_ids(value: Any, out: set[str]) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        gid = _normalize_generation_id(value)
+        if gid:
+            out.add(gid)
+        return
+    if isinstance(value, dict):
+        # Direct candidates
+        for key in (
+            "generation_id",
+            "openrouter_generation_id",
+            "x-openrouter-generation-id",
+            "x-openrouter-id",
+            "id",
+        ):
+            if key in value:
+                _collect_generation_ids(value.get(key), out)
+        # Nested headers variants
+        for headers_key in (
+            "response_headers",
+            "headers",
+            "http_headers",
+            "raw_headers",
+        ):
+            headers = value.get(headers_key)
+            if isinstance(headers, dict):
+                for hk, hv in headers.items():
+                    lowered = str(hk).strip().lower()
+                    if lowered in {"x-openrouter-generation-id", "x-openrouter-id"}:
+                        _collect_generation_ids(hv, out)
+        return
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            _collect_generation_ids(item, out)
+        return
+    # SDK response objects: inspect known fields only.
+    for attr in (
+        "generation_id",
+        "openrouter_generation_id",
+        "id",
+        "response_headers",
+        "headers",
+        "http_headers",
+        "raw_headers",
+    ):
+        if hasattr(value, attr):
+            try:
+                _collect_generation_ids(getattr(value, attr), out)
+            except Exception:
+                continue
+
+
+def _remember_generation_ids(api_request_id: str, generation_ids: list[str]) -> None:
+    if not api_request_id or not generation_ids:
+        return
+    existing = _GENERATION_IDS_BY_API_REQUEST.get(api_request_id, [])
+    merged = list(dict.fromkeys([*existing, *generation_ids]))
+    _GENERATION_IDS_BY_API_REQUEST[api_request_id] = merged
+    _GENERATION_IDS_BY_API_REQUEST.move_to_end(api_request_id)
+    while len(_GENERATION_IDS_BY_API_REQUEST) > _GEN_CACHE_MAX:
+        _GENERATION_IDS_BY_API_REQUEST.popitem(last=False)
+
+
+def _consume_generation_ids(api_request_id: str) -> list[str]:
+    if not api_request_id:
+        return []
+    return list(_GENERATION_IDS_BY_API_REQUEST.pop(api_request_id, []))
+
+
+def _extract_generation_ids_from_post_api_request(kwargs: dict[str, Any]) -> list[str]:
+    found: set[str] = set()
+    # Known top-level payload slots on post_api_request hooks.
+    for key in (
+        "generation_id",
+        "response_id",
+        "response",
+        "response_headers",
+        "raw_response",
+        "api_response",
+    ):
+        if key in kwargs:
+            _collect_generation_ids(kwargs.get(key), found)
+    # OpenRouter may include generation headers in a generic headers map.
+    headers = kwargs.get("headers")
+    if isinstance(headers, dict):
+        for hk, hv in headers.items():
+            lowered = str(hk).strip().lower()
+            if lowered in {"x-openrouter-generation-id", "x-openrouter-id"}:
+                _collect_generation_ids(hv, found)
+    return sorted(found)
+
+
+def _extract_generation_ids_from_llm_response(response: Any) -> list[str]:
+    found: set[str] = set()
+    _collect_generation_ids(response, found)
+    return sorted(found)
 
 
 def on_pre_tool_call(**kwargs) -> None:
@@ -250,6 +370,29 @@ def on_pre_tool_call(**kwargs) -> None:
     except Exception as exc:
         _health_error(exc)
     return None
+
+
+def on_post_api_request(**kwargs) -> None:
+    try:
+        api_request_id = str(kwargs.get("api_request_id") or "").strip()
+        generation_ids = _extract_generation_ids_from_post_api_request(kwargs)
+        if api_request_id and generation_ids:
+            _remember_generation_ids(api_request_id, generation_ids)
+    except Exception as exc:
+        _health_error(exc)
+    return None
+
+
+def on_llm_execution_middleware(request, next_call, **kwargs):
+    response = next_call(request)
+    try:
+        api_request_id = str(kwargs.get("api_request_id") or "").strip()
+        generation_ids = _extract_generation_ids_from_llm_response(response)
+        if api_request_id and generation_ids:
+            _remember_generation_ids(api_request_id, generation_ids)
+    except Exception as exc:
+        _health_error(exc)
+    return response
 
 
 def on_post_tool_call(**kwargs) -> None:
@@ -373,8 +516,14 @@ def _setup_argparse(subparser) -> None:
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", on_pre_tool_call)
     ctx.register_hook("post_tool_call", on_post_tool_call)
+    ctx.register_hook("post_api_request", on_post_api_request)
+    register_middleware = getattr(ctx, "register_middleware", None)
+    if register_middleware is not None:
+        register_middleware("llm_execution", on_llm_execution_middleware)
     HOOKS_REGISTERED["pre_tool_call"] = True
     HOOKS_REGISTERED["post_tool_call"] = True
+    HOOKS_REGISTERED["post_api_request"] = True
+    HOOKS_REGISTERED["llm_execution_middleware"] = register_middleware is not None
     register_cli = getattr(ctx, "register_cli_command", None)
     if register_cli is not None:
         register_cli(

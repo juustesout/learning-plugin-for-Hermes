@@ -11,6 +11,7 @@ class FakeCtx:
     def __init__(self, with_cli: bool = True):
         self.hooks = []
         self.cli = []
+        self.middleware = []
         if not with_cli:
             return
 
@@ -29,6 +30,9 @@ class FakeCtx:
     def register_hook(self, name, fn):
         self.hooks.append((name, fn))
 
+    def register_middleware(self, kind, fn):
+        self.middleware.append((kind, fn))
+
 
 def test_register_hook_and_cli():
     ctx = FakeCtx()
@@ -36,9 +40,13 @@ def test_register_hook_and_cli():
     assert ctx.hooks == [
         ("pre_tool_call", hermes_plugin.on_pre_tool_call),
         ("post_tool_call", hermes_plugin.on_post_tool_call),
+        ("post_api_request", hermes_plugin.on_post_api_request),
     ]
     assert len(ctx.cli) == 1
     assert ctx.cli[0]["name"] == "agent-learning"
+    assert ctx.middleware == [
+        ("llm_execution", hermes_plugin.on_llm_execution_middleware),
+    ]
 
 
 def test_register_without_cli_command():
@@ -46,7 +54,64 @@ def test_register_without_cli_command():
     hermes_plugin.register(ctx)
     assert ctx.hooks[0][0] == "pre_tool_call"
     assert ctx.hooks[1][0] == "post_tool_call"
+    assert ctx.hooks[2][0] == "post_api_request"
     assert ctx.cli == []
+    assert ctx.middleware == [("llm_execution", hermes_plugin.on_llm_execution_middleware)]
+
+
+def test_generation_ids_flow_from_post_api_request_to_post_tool_call():
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+    hermes_plugin.on_post_api_request(
+        api_request_id="turn:1:api:1",
+        response_headers={"x-openrouter-generation-id": "gen-abc123"},
+    )
+    payload = hermes_plugin.build_operation(
+        tool_name="terminal",
+        status="ok",
+        api_request_id="turn:1:api:1",
+    )
+    assert payload["generation_ids"] == ["gen-abc123"]
+    assert payload["metadata"]["generation_ids"] == ["gen-abc123"]
+
+
+def test_generation_ids_flow_from_llm_middleware_to_post_tool_call():
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+
+    def _next_call(_request):
+        return {"id": "gen-mid-1"}
+
+    response = hermes_plugin.on_llm_execution_middleware(
+        {"messages": []},
+        _next_call,
+        api_request_id="turn:2:api:9",
+    )
+    assert response == {"id": "gen-mid-1"}
+    payload = hermes_plugin.build_operation(
+        tool_name="terminal",
+        status="ok",
+        api_request_id="turn:2:api:9",
+    )
+    assert payload["generation_ids"] == ["gen-mid-1"]
+    assert payload["metadata"]["generation_ids"] == ["gen-mid-1"]
+
+
+def test_hook_writes_top_level_generation_ids(tmp_path, monkeypatch):
+    log_path = tmp_path / "operations.jsonl"
+    monkeypatch.setattr(opslog, "STORE_DIR", str(tmp_path))
+    monkeypatch.setattr(opslog, "OPSLOG_PATH", str(log_path))
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+    hermes_plugin.on_post_api_request(
+        api_request_id="turn:3:api:1",
+        response_headers={"x-openrouter-generation-id": "gen-top-1"},
+    )
+    hermes_plugin.on_post_tool_call(
+        tool_name="web_search",
+        status="ok",
+        api_request_id="turn:3:api:1",
+    )
+    entry = json.loads(log_path.read_text().strip())
+    assert entry["generation_ids"] == ["gen-top-1"]
+    assert entry["metadata"]["generation_ids"] == ["gen-top-1"]
 
 
 def test_build_operation_maps_web_extract():
