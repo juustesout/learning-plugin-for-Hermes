@@ -34,6 +34,7 @@ from workflow_dag import (
     WorkflowNode,
     WorkflowRun,
 )
+import decision_stats
 
 # ---------------------------------------------------------------------------
 # Type aliases for callbacks
@@ -300,7 +301,18 @@ class WorkflowRunner:
 
             # ---- Step 1: Decision -----------------------------------------
             started_at = datetime.now(timezone.utc).isoformat()
+            advice = self._build_decision_advice(node, run.context)
+            if advice:
+                existing = run.context.get("decision_advice")
+                if not isinstance(existing, dict):
+                    existing = {}
+                    run.context["decision_advice"] = existing
+                existing[node.id] = advice
             action_id, logprob, dec_meta = dec(node, run.context)
+            if not isinstance(dec_meta, dict):
+                dec_meta = {"value": str(dec_meta or "")}
+            if advice:
+                dec_meta.setdefault("decision_advice", advice)
 
             node_result = NodeResult(
                 node_id=node.id,
@@ -349,6 +361,16 @@ class WorkflowRunner:
                 actual_latency,
                 cost=exec_meta.get("cost"),
             )
+            gap_metrics = self._build_decision_gap(
+                advice=advice,
+                selected_action=action_id,
+                status=status,
+                latency_ms=actual_latency * 1000.0,
+                cost=exec_meta.get("cost"),
+            )
+            if gap_metrics:
+                dec_meta.setdefault("decision_gap", gap_metrics)
+                node_result.metadata["decision_gap"] = gap_metrics
 
             # ---- Step 2c: Local reward (per-node, independent of global) ----
             local_reward_val: Optional[float] = None
@@ -368,7 +390,7 @@ class WorkflowRunner:
             # ---- Step 3: Episode logging -----------------------------------
             if self.store and node.task_id:
                 episode_id = self._log_episode(node, action_id, logprob,
-                                               status, summary, run)
+                                               status, summary, run, dec_meta)
                 node_result.episode_id = episode_id
                 # Store local reward linked to this episode
                 if local_reward_val is not None and episode_id:
@@ -410,6 +432,7 @@ class WorkflowRunner:
         status: str,
         summary: str,
         run: WorkflowRun,
+        decision_meta: Optional[dict[str, Any]] = None,
     ) -> str:
         """Create and persist an Episode for this node's decision+execution."""
         try:
@@ -440,6 +463,8 @@ class WorkflowRunner:
                 "node_id": node.id,
                 "distance_from_end": self.dag.distance_from_end(node.id),
                 "action_name": node.actions_short.get(action_id, action_id),
+                "decision_options": list(node.action_ids),
+                "decision_meta": decision_meta or {},
                 "correct_action_id": node.metadata.get("correct_action_id"),
                 "task_completed": status == "completed",
             },
@@ -453,6 +478,130 @@ class WorkflowRunner:
         except Exception as exc:
             logger.warning("  [%s] failed to store episode: %s", node.id, exc)
             return ""
+
+    def _build_decision_advice(
+        self,
+        node: WorkflowNode,
+        context: Dict[str, Any],
+    ) -> Optional[dict[str, Any]]:
+        if not node.task_id or not node.action_ids:
+            return None
+        raw_lookback = context.get("decision_stats_lookback_days", 30)
+        raw_min_n = context.get("decision_stats_min_n", 5)
+        operations_path = str(context.get("decision_stats_operations_path") or "").strip()
+        try:
+            lookback_days = int(raw_lookback)
+        except (TypeError, ValueError):
+            lookback_days = 30
+        try:
+            min_n = int(raw_min_n)
+        except (TypeError, ValueError):
+            min_n = 5
+        try:
+            return decision_stats.build_decision_advice(
+                task_id=node.task_id,
+                options=list(node.action_ids),
+                lookback_days=lookback_days,
+                min_n=min_n,
+                operations_path=operations_path,
+            )
+        except Exception as exc:
+            logger.warning("  [%s] decision stats unavailable: %s", node.id, exc)
+            return None
+
+    def _build_decision_gap(
+        self,
+        *,
+        advice: Optional[dict[str, Any]],
+        selected_action: str,
+        status: str,
+        latency_ms: float,
+        cost: Any,
+    ) -> Optional[dict[str, Any]]:
+        if not isinstance(advice, dict):
+            return None
+        options = advice.get("options")
+        if not isinstance(options, dict):
+            return None
+        chosen = options.get(selected_action)
+        if not isinstance(chosen, dict):
+            return None
+
+        def _as_float(value: Any) -> Optional[float]:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        predicted_success = _as_float(chosen.get("success_rate"))
+        predicted_latency = _as_float(chosen.get("avg_latency_ms"))
+        predicted_cost = _as_float(chosen.get("avg_cost"))
+        predicted_utility = _as_float(chosen.get("expected_utility"))
+        actual_success = status == "completed"
+        actual_cost = None
+        try:
+            if cost is not None:
+                actual_cost = float(cost)
+        except (TypeError, ValueError):
+            actual_cost = None
+
+        success_error = None
+        if predicted_success is not None:
+            success_error = float(actual_success) - predicted_success
+
+        latency_error = None
+        if predicted_latency is not None:
+            latency_error = float(latency_ms) - predicted_latency
+
+        cost_error = None
+        if predicted_cost is not None and actual_cost is not None:
+            cost_error = float(actual_cost) - predicted_cost
+
+        actual_utility = (
+            1.0
+            if actual_success
+            else 0.0
+        ) - (
+            0.2 if latency_error is not None and latency_error > 0 else 0.0
+        ) - (
+            0.2 if cost_error is not None and cost_error > 0 else 0.0
+        )
+        utility_error = None
+        if predicted_utility is not None:
+            utility_error = actual_utility - predicted_utility
+
+        surprise = 0.0
+        if success_error is not None:
+            surprise += abs(success_error)
+        if latency_error is not None and predicted_latency not in (None, 0):
+            surprise += min(abs(latency_error) / max(predicted_latency, 1.0), 1.0)
+        if cost_error is not None and predicted_cost not in (None, 0):
+            surprise += min(abs(cost_error) / max(predicted_cost, 0.000001), 1.0)
+
+        return {
+            "selected_action": selected_action,
+            "recommended_action": advice.get("recommended_action") or "",
+            "predicted": {
+                "success_rate": predicted_success,
+                "avg_latency_ms": predicted_latency,
+                "avg_cost": predicted_cost,
+                "expected_utility": predicted_utility,
+            },
+            "actual": {
+                "success": actual_success,
+                "latency_ms": round(float(latency_ms), 3),
+                "cost": actual_cost,
+                "status": status,
+                "utility": round(float(actual_utility), 6),
+            },
+            "errors": {
+                "success_error": round(float(success_error), 6) if success_error is not None else None,
+                "latency_error_ms": round(float(latency_error), 3) if latency_error is not None else None,
+                "cost_error": round(float(cost_error), 6) if cost_error is not None else None,
+                "utility_error": round(float(utility_error), 6) if utility_error is not None else None,
+            },
+            "surprise_score": round(float(surprise), 6),
+        }
 
     # ------------------------------------------------------------------
     # Credit assignment

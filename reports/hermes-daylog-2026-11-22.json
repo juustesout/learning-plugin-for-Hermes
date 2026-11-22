@@ -1,0 +1,366 @@
+{
+  "report_type": "hermes_daily_activity_log",
+  "day": "2026-11-22",
+  "timezone": "local",
+  "generated_at": "2026-11-22T20:34:08.172966+00:00",
+  "db_path": "C:\\Users\\juust\\.hermes\\profiles\\operator\\state.db",
+  "sections": {
+    "daily": {
+      "available": true,
+      "rows": [
+        {
+          "day": "2026-11-22",
+          "sessions": 3,
+          "user_messages": 30,
+          "assistant_messages": 184,
+          "tool_calls": 214,
+          "errors": 25,
+          "total_tokens": 27952423,
+          "input_tokens": 2125776,
+          "output_tokens": 66311
+        }
+      ]
+    },
+    "models": {
+      "available": true,
+      "rows": [
+        {
+          "day": "2026-11-22",
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash",
+          "sessions": 3,
+          "requests": 174,
+          "input_tokens": 2125776,
+          "output_tokens": 66311,
+          "total_tokens": 27952423,
+          "estimated_cost_usd": 0.666479628
+        }
+      ]
+    },
+    "tools": {
+      "available": true,
+      "rows": [
+        {
+          "day": "2026-11-22",
+          "tool_name": "terminal",
+          "mcp_server": "-",
+          "invocations": 115,
+          "success_count": 107,
+          "failure_count": 8
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "read_file",
+          "mcp_server": "-",
+          "invocations": 39,
+          "success_count": 37,
+          "failure_count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "execute_code",
+          "mcp_server": "-",
+          "invocations": 14,
+          "success_count": 8,
+          "failure_count": 6
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "search_files",
+          "mcp_server": "-",
+          "invocations": 12,
+          "success_count": 12,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_postgres_postgres_mcp_modify",
+          "mcp_server": "postgres",
+          "invocations": 5,
+          "success_count": 4,
+          "failure_count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_postgres_postgres_mcp_query",
+          "mcp_server": "postgres",
+          "invocations": 4,
+          "success_count": 2,
+          "failure_count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "patch",
+          "mcp_server": "-",
+          "invocations": 3,
+          "success_count": 2,
+          "failure_count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "skill_view",
+          "mcp_server": "-",
+          "invocations": 3,
+          "success_count": 3,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_hindsight_sync_retain",
+          "mcp_server": "hindsight",
+          "invocations": 2,
+          "success_count": 2,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_openrouter_search_docs",
+          "mcp_server": "openrouter",
+          "invocations": 2,
+          "success_count": 2,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_postgres_postgres_mcp_bulk_load_csv",
+          "mcp_server": "postgres",
+          "invocations": 2,
+          "success_count": 0,
+          "failure_count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_postgres_postgres_mcp_connect",
+          "mcp_server": "postgres",
+          "invocations": 2,
+          "success_count": 1,
+          "failure_count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "write_file",
+          "mcp_server": "-",
+          "invocations": 2,
+          "success_count": 1,
+          "failure_count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_captureapi_capture_og",
+          "mcp_server": "captureapi",
+          "invocations": 1,
+          "success_count": 0,
+          "failure_count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_hindsight_create_mental_model",
+          "mcp_server": "hindsight",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_hindsight_recall",
+          "mcp_server": "hindsight",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_openrouter_get_credits",
+          "mcp_server": "openrouter",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_openrouter_get_current_key",
+          "mcp_server": "openrouter",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_postgres_postgres_mcp_list_connection_profiles",
+          "mcp_server": "postgres",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "mcp_webclaw_webclaw_scrape",
+          "mcp_server": "webclaw",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "session_search",
+          "mcp_server": "-",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        },
+        {
+          "day": "2026-11-22",
+          "tool_name": "todo",
+          "mcp_server": "-",
+          "invocations": 1,
+          "success_count": 1,
+          "failure_count": 0
+        }
+      ]
+    },
+    "sessions": {
+      "available": true,
+      "rows": [
+        {
+          "session_id": "cron_030fbc7ce9f7_20261122_131538",
+          "source": "cron",
+          "started_at": 1795353347.4195373,
+          "last_activity_at": 1795353487.4180486,
+          "duration_seconds": 140.0,
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "openrouter",
+          "user_messages": 1,
+          "assistant_messages": 11,
+          "tool_calls": 14,
+          "tool_errors": 3,
+          "api_calls": 11,
+          "input_tokens": 136236,
+          "output_tokens": 3098,
+          "total_tokens": 1441976,
+          "estimated_cost_usd": 0.036250559999999994,
+          "end_reason": "cron_complete"
+        },
+        {
+          "session_id": "20261122_111233_a50cfe",
+          "source": "cli",
+          "started_at": 1795345953.4462168,
+          "last_activity_at": 1795379643.7868357,
+          "duration_seconds": 33690.34,
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "openrouter",
+          "user_messages": 19,
+          "assistant_messages": 131,
+          "tool_calls": 149,
+          "tool_errors": 17,
+          "api_calls": 126,
+          "input_tokens": 1325788,
+          "output_tokens": 48938,
+          "total_tokens": 21580403,
+          "estimated_cost_usd": 0.4915212480000001,
+          "end_reason": ""
+        },
+        {
+          "session_id": "20261122_103625_a9394a",
+          "source": "cli",
+          "started_at": 1795343879.930033,
+          "last_activity_at": 1795345953.4162881,
+          "duration_seconds": 2073.49,
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "openrouter",
+          "user_messages": 8,
+          "assistant_messages": 38,
+          "tool_calls": 49,
+          "tool_errors": 5,
+          "api_calls": 37,
+          "input_tokens": 663752,
+          "output_tokens": 14275,
+          "total_tokens": 4930044,
+          "estimated_cost_usd": 0.13870781999999998,
+          "end_reason": "new_session"
+        }
+      ]
+    },
+    "errors": {
+      "available": true,
+      "rows": [
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "terminal",
+          "count": 8
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "execute_code",
+          "count": 6
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "mcp_postgres_postgres_mcp_bulk_load_csv",
+          "count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "mcp_postgres_postgres_mcp_query",
+          "count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "read_file",
+          "count": 2
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "mcp_captureapi_capture_og",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "mcp_postgres_postgres_mcp_connect",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "mcp_postgres_postgres_mcp_modify",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "patch",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "tool_call_failed",
+          "key_name": "write_file",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "session_end_reason",
+          "key_name": "cron_complete",
+          "count": 1
+        },
+        {
+          "day": "2026-11-22",
+          "error_type": "session_end_reason",
+          "key_name": "new_session",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "notes": {
+    "read_only": true,
+    "token_source": "sessions table aggregate columns",
+    "tool_error_detection": "heuristic from tool JSON fields (status/exit_code/error)"
+  }
+}

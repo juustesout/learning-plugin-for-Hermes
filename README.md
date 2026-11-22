@@ -54,6 +54,19 @@ dist:   5          4          3        2       1         0
 γ^d:  0.33       0.41       0.51     0.64    0.80     1.00
 ```
 
+Pre-decision option stats are available per node via `decision_stats.py`.
+`WorkflowRunner` injects a snapshot into `run.context["decision_advice"][node_id]`
+before `decision_fn` is called. Override knobs in run context:
+
+- `decision_stats_lookback_days` (default `30`)
+- `decision_stats_min_n` (default `5`)
+- `decision_stats_operations_path` (optional custom `operations.jsonl` path)
+
+Each episode metadata now includes `decision_options` and `decision_meta`
+for traceability of pre-decision evidence, plus `decision_meta.decision_gap`
+with expected-vs-actual deltas (`success_error`, `latency_error_ms`,
+`cost_error`, `utility_error`, `surprise_score`).
+
 ### Level 3 — Graph Evolution
 - **DagRegistry** — multi-DAG management with meta-policy selection
 - **MultiDagOrchestrator** — sequential, conditional, looped, and meta-DAG execution
@@ -141,6 +154,7 @@ forcing every operation to belong to a workflow.
 │
 ├── workflow_dag.py            # DAG dataclasses (Node, Edge, topo sort)
 ├── workflow_runner.py         # Sequential executor + credit assignment
+├── decision_stats.py          # Pre-decision stats from opslog per option
 ├── workflow_visualize.py      # ASCII + Mermaid + run reports
 ├── podcast_workflow.py        # Concrete 6-node podcast DAG + CLI
 │

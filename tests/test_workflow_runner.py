@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from workflow_dag import WorkflowDAG, WorkflowNode
 from workflow_runner import (
     WorkflowRunner,
@@ -156,3 +159,156 @@ def test_no_store_skips_episode_ids():
     runner = WorkflowRunner(_linear_dag(), execute_fn=_instant_ok)
     run = runner.execute()
     assert all(nr.episode_id is None for nr in run.node_results)
+
+
+def _write_ops(store_dir: str, rows: list[dict]) -> None:
+    path = Path(store_dir) / "operations.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row) + "\n")
+
+
+def test_decision_advice_available_before_decision(temp_store_dir):
+    _write_ops(
+        temp_store_dir,
+        [
+            {
+                "task_id": "task-a",
+                "action_id": "fast",
+                "execution_status": "completed",
+                "request_latency_ms": 100.0,
+                "metadata": {"cost_credits": 0.02},
+                "timestamp": "2026-11-22T12:00:00+00:00",
+            },
+            {
+                "task_id": "task-a",
+                "action_id": "slow",
+                "execution_status": "failed",
+                "request_latency_ms": 800.0,
+                "metadata": {"cost_credits": 0.2},
+                "timestamp": "2026-11-22T12:05:00+00:00",
+            },
+        ],
+    )
+
+    node = WorkflowNode(
+        id="n1",
+        name="N1",
+        task_id="task-a",
+        action_ids=["slow", "fast"],
+    )
+    dag = WorkflowDAG(id="decision", nodes=[node])
+
+    def decide(node, context):
+        advice = context["decision_advice"][node.id]
+        return advice["recommended_action"], None, {"source": "decision_advice"}
+
+    runner = WorkflowRunner(dag, decision_fn=decide, execute_fn=_instant_ok)
+    run = runner.execute(context={"decision_stats_min_n": 1})
+
+    advice = run.context["decision_advice"]["n1"]
+    assert advice["recommended_action"] == "fast"
+    assert set(advice["options"].keys()) == {"slow", "fast"}
+    assert run.node_results[0].action_id == "fast"
+
+
+def test_decision_advice_persisted_in_episode_metadata(store, temp_store_dir):
+    _write_ops(
+        temp_store_dir,
+        [
+            {
+                "task_id": "task-a",
+                "action_id": "do_a",
+                "execution_status": "completed",
+                "request_latency_ms": 120.0,
+                "metadata": {"cost_credits": 0.01},
+                "timestamp": "2026-11-22T10:00:00+00:00",
+            },
+            {
+                "task_id": "task-a",
+                "action_id": "do_b",
+                "execution_status": "failed",
+                "request_latency_ms": 900.0,
+                "metadata": {"cost_credits": 0.15},
+                "timestamp": "2026-11-22T10:05:00+00:00",
+            },
+        ],
+    )
+
+    dag = WorkflowDAG(
+        id="t1",
+        nodes=[
+            WorkflowNode(
+                id="a",
+                name="A",
+                task_id="task-a",
+                action_ids=["do_a", "do_b"],
+                actions_short={"do_a": "A", "do_b": "B"},
+            )
+        ],
+    )
+    runner = WorkflowRunner(dag, store=store, execute_fn=_instant_ok)
+    run = runner.execute(context={"decision_stats_min_n": 1})
+
+    assert run.node_results[0].episode_id
+    episodes = store.query_episodes("hermes")
+    assert len(episodes) == 1
+    decision_meta = episodes[0].metadata["decision_meta"]
+    assert decision_meta["decision_advice"]["recommended_action"] == "do_a"
+    assert decision_meta["decision_advice"]["task_id"] == "task-a"
+    assert decision_meta["decision_gap"]["selected_action"] == "do_a"
+    assert decision_meta["decision_gap"]["actual"]["success"] is True
+    assert decision_meta["decision_gap"]["errors"]["success_error"] == 0.0
+
+
+def test_decision_gap_tracks_failed_outcome(store, temp_store_dir):
+    _write_ops(
+        temp_store_dir,
+        [
+            {
+                "task_id": "task-a",
+                "action_id": "do_a",
+                "execution_status": "completed",
+                "request_latency_ms": 100.0,
+                "metadata": {"cost_credits": 0.02},
+                "timestamp": "2026-11-22T09:00:00+00:00",
+            },
+            {
+                "task_id": "task-a",
+                "action_id": "do_b",
+                "execution_status": "failed",
+                "request_latency_ms": 900.0,
+                "metadata": {"cost_credits": 0.3},
+                "timestamp": "2026-11-22T09:05:00+00:00",
+            },
+        ],
+    )
+    dag = WorkflowDAG(
+        id="t2",
+        nodes=[
+            WorkflowNode(
+                id="a",
+                name="A",
+                task_id="task-a",
+                action_ids=["do_a", "do_b"],
+            )
+        ],
+    )
+
+    def choose_forced(_node, _context):
+        return "do_a", None, {"source": "forced"}
+
+    def fail_exec(_node, _action_id, _context):
+        return "failed", "forced failure", {"latency_s": 0.5, "cost": 0.31}
+
+    runner = WorkflowRunner(dag, store=store, decision_fn=choose_forced, execute_fn=fail_exec)
+    run = runner.execute(context={"decision_stats_min_n": 1})
+
+    assert run.node_results[0].action_id == "do_a"
+    episodes = store.query_episodes("hermes")
+    gap = episodes[0].metadata["decision_meta"]["decision_gap"]
+    assert gap["recommended_action"] == "do_a"
+    assert gap["actual"]["success"] is False
+    assert gap["errors"]["success_error"] < 0
+    assert gap["surprise_score"] > 0
