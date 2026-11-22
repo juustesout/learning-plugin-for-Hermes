@@ -1,0 +1,31 @@
+{
+  "manifest_version": 1,
+  "workflow_id": "sloppy-hn",
+  "version": "1.0.0",
+  "name": "Sloppy Hacker News curation",
+  "owner": "juust",
+  "work_unit": "hn-curate-and-publish",
+  "trigger": "scheduled",
+  "execution_mode": "workflow",
+  "automation": {
+    "id": "sloppy-hn",
+    "schedule": "four daily runs",
+    "enabled_source": "../nieuws-monitor/.enabled"
+  },
+  "inputs": ["hackernews-feed", "forum-topic-vectors", "posted-history"],
+  "outputs": ["forum-post", "pool-candidate", "blind-label-item"],
+  "logs": {
+    "source": "sloppy-run-log",
+    "path": "../scripts/logs/*.jsonl"
+  },
+  "steps": [
+    {"id": "scan", "kind": "source", "depends_on": [], "skills": [], "tools": ["hackernews-api"]},
+    {"id": "scrape", "kind": "transform", "depends_on": ["scan"], "skills": ["web-research"], "tools": ["jina-reader"]},
+    {"id": "vector-filter", "kind": "decision", "depends_on": ["scrape"], "skills": ["vector-matching"], "tools": ["openai-embedding", "qdrant"]},
+    {"id": "pool-import", "kind": "decision", "depends_on": ["vector-filter"], "skills": ["operations-research"], "tools": ["pool_v1"]},
+    {"id": "select", "kind": "decision", "depends_on": ["pool-import"], "skills": ["ranking-evaluation"], "tools": ["hn_ranker"]},
+    {"id": "compose", "kind": "transform", "depends_on": ["select"], "skills": ["writing"], "tools": ["openai"]},
+    {"id": "publish", "kind": "sink", "depends_on": ["compose"], "skills": ["forum-publishing"], "tools": ["aidevforum-api", "wordpress"]},
+    {"id": "record-outcome", "kind": "sink", "depends_on": ["publish"], "skills": ["operations-research"], "tools": ["agent-learning-pool", "postgres"]}
+  ]
+}

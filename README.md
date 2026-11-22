@@ -111,6 +111,22 @@ Security note: dashboard output now HTML-escapes all episode metadata fields
 before rendering table cells/headings. This prevents script injection when runs
 contain untrusted values (for example custom `action_id` strings).
 
+### Workflow registry
+
+Workflow structure is declared in `workflows/*.json`; runtime logs only provide
+observed status and metrics. Validate and inspect the central register with:
+
+```bash
+python3 workflow_registry.py validate
+python3 workflow_registry.py status --all
+python3 workflow_registry.py status --all --json
+```
+
+The nightly `opslog-consolidate` job writes the machine-readable snapshot to
+`dashboard/registry.json`. Operations can optionally carry `work_unit`,
+`trigger`, `execution_mode`, `parent_run_id`, and `skills_involved` without
+forcing every operation to belong to a workflow.
+
 ---
 
 ## Project Structure

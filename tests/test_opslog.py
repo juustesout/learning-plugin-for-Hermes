@@ -36,6 +36,27 @@ def test_log_operation_writes_jsonl(tmp_path, monkeypatch):
     assert entry["request_latency_ms"] == 3100
 
 
+def test_log_operation_accepts_operational_context(tmp_path, monkeypatch):
+    log_path = tmp_path / "operations.jsonl"
+    monkeypatch.setattr(opslog, "STORE_DIR", str(tmp_path))
+    monkeypatch.setattr(opslog, "OPSLOG_PATH", str(log_path))
+    opslog.log_operation(
+        task_id="hn-curation",
+        action_id="vector-filter",
+        work_unit="hn-curate-and-publish",
+        trigger="scheduled",
+        execution_mode="workflow",
+        parent_run_id="parent-run",
+        skills_involved=["vector-matching", "web-research"],
+    )
+    metadata = json.loads(log_path.read_text().strip())["metadata"]
+    assert metadata["work_unit"] == "hn-curate-and-publish"
+    assert metadata["trigger"] == "scheduled"
+    assert metadata["execution_mode"] == "workflow"
+    assert metadata["parent_run_id"] == "parent-run"
+    assert metadata["skills_involved"] == ["vector-matching", "web-research"]
+
+
 def test_log_failure_status(tmp_path, monkeypatch):
     log_path = tmp_path / "operations.jsonl"
     monkeypatch.setattr(opslog, "STORE_DIR", str(tmp_path))

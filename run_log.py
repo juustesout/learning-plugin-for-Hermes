@@ -198,16 +198,37 @@ class Step:
             summary=summary,
             action_type=self.action_id,
             metadata=metadata,
+            work_unit=self.run.work_unit,
+            trigger=self.run.trigger,
+            execution_mode=self.run.execution_mode,
+            parent_run_id=self.run.parent_run_id,
+            skills_involved=self.run.skills_involved,
         )
         self.run.steps += 1
         return False
 
 
 class Run:
-    def __init__(self, workflow: str, *, run_id: str = "", item_id: str = ""):
+    def __init__(
+        self,
+        workflow: str,
+        *,
+        run_id: str = "",
+        item_id: str = "",
+        work_unit: str = "",
+        trigger: str = "scheduled",
+        execution_mode: str = "workflow",
+        parent_run_id: str = "",
+        skills_involved: Optional[list[str]] = None,
+    ):
         self.workflow = workflow
         self.run_id = run_id or str(uuid.uuid4())
         self.item_id = item_id
+        self.work_unit = work_unit
+        self.trigger = trigger
+        self.execution_mode = execution_mode
+        self.parent_run_id = parent_run_id
+        self.skills_involved = skills_involved or []
         self.steps = 0
         self.failed = 0
         self.status = "running"
@@ -240,8 +261,12 @@ class Run:
                 "run_id": self.run_id,
                 "workflow": self.workflow,
                 "item_id": self.item_id,
+                "work_unit": self.work_unit,
+                "trigger": self.trigger,
+                "execution_mode": self.execution_mode,
+                "parent_run_id": self.parent_run_id,
+                "skills_involved": self.skills_involved,
                 "status": "running",
-                "started_at": self.started_at,
                 "source": SOURCE_AUTOMATION,
             }
         )
@@ -261,8 +286,12 @@ class Run:
                 "run_id": self.run_id,
                 "workflow": self.workflow,
                 "item_id": self.item_id,
+                "work_unit": self.work_unit,
+                "trigger": self.trigger,
+                "execution_mode": self.execution_mode,
+                "parent_run_id": self.parent_run_id,
+                "skills_involved": self.skills_involved,
                 "status": self.status,
-                "started_at": self.started_at,
                 "ended_at": self.ended_at,
                 "steps": self.steps,
                 "failed": self.failed,
@@ -272,5 +301,24 @@ class Run:
         return False
 
 
-def run_log(workflow: str, *, run_id: str = "", item_id: str = "") -> Run:
-    return Run(workflow, run_id=run_id, item_id=item_id)
+def run_log(
+    workflow: str,
+    *,
+    run_id: str = "",
+    item_id: str = "",
+    work_unit: str = "",
+    trigger: str = "scheduled",
+    execution_mode: str = "workflow",
+    parent_run_id: str = "",
+    skills_involved: Optional[list[str]] = None,
+) -> Run:
+    return Run(
+        workflow,
+        run_id=run_id,
+        item_id=item_id,
+        work_unit=work_unit,
+        trigger=trigger,
+        execution_mode=execution_mode,
+        parent_run_id=parent_run_id,
+        skills_involved=skills_involved,
+    )

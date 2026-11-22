@@ -246,9 +246,23 @@ def log_operation(
     action_logprob: Optional[float] = None,
     context_features: Optional[dict] = None,
     metadata: Optional[dict] = None,
+    work_unit: str = "",
+    trigger: str = "",
+    execution_mode: str = "",
+    parent_run_id: str = "",
+    skills_involved: Optional[list[str]] = None,
 ):
     """Log één operatie naar operations.jsonl (append-only)."""
+    from workflow_identity import operation_context
+
     _ensure_store()
+    operational = operation_context(
+        work_unit=work_unit,
+        trigger=trigger,
+        execution_mode=execution_mode,
+        parent_run_id=parent_run_id,
+        skills_involved=skills_involved or [],
+    )
     entry = {
         "id": str(uuid.uuid4()),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -264,6 +278,7 @@ def log_operation(
         "metadata": {
             "cost_credits": cost,
             "task_completed": success,
+            **operational,
             **(metadata or {}),
         },
         "context_features": context_features or {},

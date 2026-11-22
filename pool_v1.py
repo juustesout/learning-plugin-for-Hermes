@@ -11,6 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import env_setup  # noqa: F401
 import blind_label
 import hn_ranker
+from workflow_identity import article_id
 
 SCHEMA = "pool.v1"
 WORKFLOW = blind_label.WORKFLOW
@@ -195,6 +196,7 @@ def validate_candidate(row: dict, *, seen_ids: set[str], seen_hn: set[int]) -> d
         raise PoolError("age_hours must be a float >= 0")
     return {
         "id": item_id,
+        "article_id": article_id(url, hn_id=hn_id, title=title),
         "hn_id": hn_id,
         "title": title,
         "url": url,

@@ -421,6 +421,8 @@ def public_item(item: dict) -> dict:
     record["url"] = str(item.get("url") or "").strip()
     record["summary"] = str(item.get("summary") or "").strip()
     record["workflow"] = WORKFLOW
+    if item.get("article_id"):
+        record["article_id"] = str(item["article_id"]).strip()
     if item.get("posted_at"):
         record["posted_at"] = item["posted_at"]
     if item.get("hn_id"):

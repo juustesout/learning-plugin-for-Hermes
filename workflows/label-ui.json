@@ -1,0 +1,24 @@
+{
+  "manifest_version": 1,
+  "workflow_id": "blind-label-ui",
+  "version": "1.0.0",
+  "name": "Blind label UI",
+  "owner": "juust",
+  "work_unit": "hn-quality-control",
+  "trigger": "interactive",
+  "execution_mode": "workflow",
+  "automation": null,
+  "inputs": ["blind-label-queue", "candidate-store", "live-label-store"],
+  "outputs": ["human-label", "calibration-sample", "synced-label-store"],
+  "logs": {
+    "source": "agent-learning-evidence",
+    "path": "evidence/hn-aidevforum/labels.jsonl"
+  },
+  "steps": [
+    {"id": "refresh-store", "kind": "source", "depends_on": [], "skills": [], "tools": ["sync-label-store"]},
+    {"id": "show-blind-card", "kind": "decision", "depends_on": ["refresh-store"], "skills": [], "tools": ["label_ui"]},
+    {"id": "human-label", "kind": "human", "depends_on": ["show-blind-card"], "skills": ["operations-research"], "tools": ["label_ui"]},
+    {"id": "persist-label", "kind": "sink", "depends_on": ["human-label"], "skills": [], "tools": ["blind_label"]},
+    {"id": "finalize-sync", "kind": "sink", "depends_on": ["persist-label"], "skills": [], "tools": ["sync-label-store"]}
+  ]
+}
