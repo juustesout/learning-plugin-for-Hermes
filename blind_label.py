@@ -245,6 +245,8 @@ def should_sample(item_id: str, rate: float = SAMPLE_RATE) -> bool:
 
 
 def _daily_queue_slots(limit: int = DAILY_BLIND_SAMPLE_LIMIT) -> int:
+    if current_source() == SOURCE_SIM:
+        return 10**9
     today = datetime.now(timezone.utc).date()
     queued_today = 0
     for row in load_queue():

@@ -29,8 +29,6 @@ API_LABEL = "/api/label"
 
 def bind_host(host: str) -> str:
     raw = (host or DEFAULT_HOST).strip() or DEFAULT_HOST
-    if raw == "0.0.0.0":
-        return "0.0.0.0"
     if raw not in LOOPBACK:
         raise ValueError("label UI binds to loopback only")
     return "127.0.0.1" if raw == "localhost" else raw
