@@ -307,9 +307,23 @@ def blind_view(item: dict) -> dict:
     return view
 
 
+_JSONL_CACHE: dict[str, tuple[int, int, list[dict]]] = {}
+
+
+def _stat_key(path: Path) -> tuple[int, int]:
+    st = path.stat()
+    return (int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))), int(st.st_size))
+
+
 def _read_jsonl(path: Path) -> list[dict]:
+    key = str(path)
     if not path.exists():
+        _JSONL_CACHE.pop(key, None)
         return []
+    stamp = _stat_key(path)
+    cached = _JSONL_CACHE.get(key)
+    if cached and cached[0] == stamp[0] and cached[1] == stamp[1]:
+        return list(cached[2])
     rows = []
     with path.open(encoding="utf-8") as f:
         for line in f:
@@ -320,7 +334,8 @@ def _read_jsonl(path: Path) -> list[dict]:
                 rows.append(json.loads(raw))
             except json.JSONDecodeError:
                 continue
-    return rows
+    _JSONL_CACHE[key] = (stamp[0], stamp[1], rows)
+    return list(rows)
 
 
 def _append_jsonl(path: Path, row: dict) -> None:
@@ -337,6 +352,19 @@ def _append_jsonl_many(path: Path, rows: Iterable[dict]) -> None:
             for payload in payloads:
                 f.write(json.dumps(payload, default=str) + "\n")
             f.flush()
+        key = str(path)
+        cached = _JSONL_CACHE.get(key)
+        try:
+            stamp = _stat_key(path)
+        except OSError:
+            _JSONL_CACHE.pop(key, None)
+            return
+        if cached:
+            merged = list(cached[2])
+            merged.extend(payloads)
+            _JSONL_CACHE[key] = (stamp[0], stamp[1], merged)
+        else:
+            _JSONL_CACHE.pop(key, None)
 
     opslog._with_lock(str(path), _write)
 
