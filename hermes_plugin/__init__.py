@@ -556,6 +556,11 @@ def _handle_cli(args) -> None:
         )
         print(json.dumps(result, indent=2, default=str))
         return
+    if cmd == "report":
+        import week_report
+
+        print(week_report.format_report(), end="")
+        return
     if opslog is None:
         print("opslog unavailable", file=sys.stderr)
         return
@@ -606,7 +611,7 @@ def _handle_cli(args) -> None:
             return
     print(
         "Usage: hermes agent-learning "
-        "<stats|count|tail|health|status|selftest|record-outcome|pool|select|baseline|record-post>"
+        "<stats|count|tail|health|status|selftest|record-outcome|report|pool|select|baseline|record-post>"
     )
 
 
@@ -621,6 +626,7 @@ def _setup_argparse(subparser) -> None:
     p_out.add_argument("--decision-id", required=True)
     p_out.add_argument("--level", required=True)
     p_out.add_argument("--status", required=True)
+    subs.add_parser("report", help="Show weekly ITT / gate report")
     p_tail = subs.add_parser("tail", help="Show recent operations")
     p_tail.add_argument("-n", type=int, default=10)
     p_pool = subs.add_parser("pool", help="Import a pool.v1 candidate file")
