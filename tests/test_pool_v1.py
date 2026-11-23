@@ -235,6 +235,43 @@ def test_short_run_returns_no_choice(tmp_path, monkeypatch):
     assert selected["items"] == []
 
 
+def test_strip_url_matches_canonical_trailing_slash():
+    assert pool_v1.strip_url("https://example.com/10?token=secret") == "https://example.com/10"
+    assert pool_v1.strip_url("https://EXAMPLE.com/story/?utm_source=hn") == "https://example.com/story"
+    assert pool_v1.strip_url("https://example.com/story/") == "https://example.com/story"
+
+
+def test_weekend_fixture_import_skips_duplicate_canonical_urls(tmp_path, monkeypatch):
+    _isolate(tmp_path, monkeypatch)
+    urls = (
+        "https://example.com/story/?utm_source=hn",
+        "https://EXAMPLE.com/story",
+        "https://example.com/story?fbclid=abc",
+        "https://example.com/story/",
+        "https://example.com/story/?token=secret",
+    )
+    candidates = [
+        _cand(20 + i, i, 0.4, url=url)
+        for i, url in enumerate(urls)
+    ]
+    src = _write_pool(
+        tmp_path / "pool-weekend.jsonl",
+        header=_header(run_id="weekend"),
+        candidates=candidates,
+    )
+    result = pool_v1.import_pool(src)
+    assert result["ok"] is True
+    assert result["added"] == 1
+    assert result["queued"] == 1
+    stored = blind_label.load_candidates()
+    assert len(stored) == 1
+    assert stored[0]["url"] == "https://example.com/story"
+    selected = pool_v1.select_for_run("weekend")
+    assert selected["status"] == "short"
+    assert selected["items"] == []
+
+
+
 def test_tmp_file_is_not_read(tmp_path, monkeypatch):
     _isolate(tmp_path, monkeypatch)
     src = tmp_path / "pool-run-1.jsonl.tmp"

@@ -71,6 +71,27 @@ def test_baseline_matches_frozen_source_order():
     assert decisions[1]["baseline_pick_id"] == "b"
 
 
+def test_weekend_fixture_normalize_pool_keeps_one_url():
+    pool = [
+        _item(f"hn-{i}", i - 1, 0.5, url=url)
+        for i, url in enumerate(
+            (
+                "https://example.com/story/?utm_source=hn",
+                "https://EXAMPLE.com/story",
+                "https://example.com/story?fbclid=abc",
+                "https://example.com/story/",
+                "https://example.com/story/?token=secret",
+            ),
+            start=1,
+        )
+    ]
+    assert len({row["id"] for row in pool}) == 5
+    normalized = hn_ranker.normalize_pool(pool)
+    assert [row["id"] for row in normalized] == ["hn-1"]
+    assert hn_ranker.baseline_select_ids(pool, n=2) == ["hn-1"]
+
+
+
 def test_run_never_repeats_an_item():
     decisions = hn_ranker.select_run(
         GOLDEN_POOL,
