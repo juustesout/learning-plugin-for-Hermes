@@ -174,7 +174,8 @@ forcing every operation to belong to a workflow.
 ├── replay_advice.py           # Offline Track A advice replay (measurement gate)
 ├── REPLAY.md                  # Spec: offline advice replay gate
 ├── MVP.md                     # MVP scope and acceptance criteria
-├── MONKEY.md                  # Current work: F first; A/D blocked on hook check
+├── STATUS.md                  # Generated status; do not edit by hand
+├── scripts/status.py          # Regenerates STATUS.md (pytest collect-only + plugin_status)
 ├── eligibility.py             # Shared eligible_scrape() for replay/train/consolidate/shadow
 │
 ├── cron_workflow.sh           # Daily cron: train + run + dashboard
@@ -188,7 +189,8 @@ forcing every operation to belong to a workflow.
 │   ├── operations.jsonl
 │   └── shadow_decisions.jsonl
 ├── docs/                      # Documentatie voor andere agents/developers
-│   └── hermes-skill.md        # SKILL.md snapshot (Hermes skill store is source of truth)
+│   ├── hermes-skill.md        # SKILL.md snapshot (Hermes skill store is source of truth)
+│   └── archive/               # Stale session notes (SESSION-RESUME.md, MONKEY.md)
 └── pyproject.toml
 ```
 
