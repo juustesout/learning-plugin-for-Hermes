@@ -45,6 +45,7 @@ HOOKS_REGISTERED: dict[str, bool] = {
     "pre_llm_call": False,
     "llm_execution_middleware": False,
 }
+MIDDLEWARE_KILL_ENV = "AGENT_LEARNING_MIDDLEWARE"
 _SUMMARY_MAX = 500
 _TARGET_MAX = 300
 _TARGET_KEYS = ("url", "uri", "path", "query", "target", "href")
@@ -60,6 +61,11 @@ _GENERATION_IDS_BY_API_REQUEST: "OrderedDict[str, list[str]]" = OrderedDict()
 
 def logging_enabled() -> bool:
     raw = os.environ.get("AGENT_LEARNING_OPSLOG_ENABLED", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def middleware_enabled() -> bool:
+    raw = os.environ.get(MIDDLEWARE_KILL_ENV, "1").strip().lower()
     return raw not in {"0", "false", "no", "off"}
 
 
@@ -490,7 +496,15 @@ def on_pre_llm_call(*args, **kwargs):
 
 
 def on_llm_execution_middleware(request, next_call, **kwargs):
-    response = next_call(request)
+    try:
+        if not middleware_enabled():
+            return next_call(request)
+    except Exception:
+        return next_call(request)
+    try:
+        response = next_call(request)
+    except Exception:
+        raise
     try:
         api_request_id = str(kwargs.get("api_request_id") or "").strip()
         generation_ids = _extract_generation_ids_from_llm_response(response)

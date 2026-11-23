@@ -76,6 +76,87 @@ def test_generation_ids_flow_from_post_api_request_to_post_tool_call():
     assert payload["metadata"]["generation_ids"] == ["gen-abc123"]
 
 
+def test_llm_middleware_is_kept_for_generation_id_cost_attribution():
+    ctx = FakeCtx()
+    hermes_plugin.register(ctx)
+    assert ctx.middleware == [
+        ("llm_execution", hermes_plugin.on_llm_execution_middleware),
+    ]
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+
+    def _next_call(_request):
+        return {"id": "gen-cost-1", "usage": {"total_tokens": 12}}
+
+    response = hermes_plugin.on_llm_execution_middleware(
+        {"messages": []},
+        _next_call,
+        api_request_id="turn:cost:api:1",
+    )
+    assert response == {"id": "gen-cost-1", "usage": {"total_tokens": 12}}
+    payload = hermes_plugin.build_operation(
+        tool_name="terminal",
+        status="ok",
+        api_request_id="turn:cost:api:1",
+    )
+    assert payload["generation_ids"] == ["gen-cost-1"]
+
+
+def test_middleware_kill_switch_is_noop_and_byte_identical():
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+    request = {"messages": [{"role": "user", "content": "x"}]}
+    expected = {"id": "gen-kill-1", "usage": {"total_tokens": 3}}
+
+    def _next_call(payload):
+        assert payload is request
+        return dict(expected)
+
+    import os
+
+    old = os.environ.get(hermes_plugin.MIDDLEWARE_KILL_ENV)
+    os.environ[hermes_plugin.MIDDLEWARE_KILL_ENV] = "off"
+    try:
+        response = hermes_plugin.on_llm_execution_middleware(
+            request,
+            _next_call,
+            api_request_id="turn:kill:api:1",
+        )
+    finally:
+        if old is None:
+            os.environ.pop(hermes_plugin.MIDDLEWARE_KILL_ENV, None)
+        else:
+            os.environ[hermes_plugin.MIDDLEWARE_KILL_ENV] = old
+    assert response == expected
+    payload = hermes_plugin.build_operation(
+        tool_name="terminal",
+        status="ok",
+        api_request_id="turn:kill:api:1",
+    )
+    assert not payload["generation_ids"]
+
+
+def test_middleware_response_byte_identical_when_attribution_fails():
+    hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
+    expected = {"id": "gen-fail-1"}
+
+    def _next_call(_request):
+        return expected
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("extract failed")
+
+    original = hermes_plugin._extract_generation_ids_from_llm_response
+    hermes_plugin._extract_generation_ids_from_llm_response = boom
+    try:
+        response = hermes_plugin.on_llm_execution_middleware(
+            {"messages": []},
+            _next_call,
+            api_request_id="turn:fail:api:1",
+        )
+    finally:
+        hermes_plugin._extract_generation_ids_from_llm_response = original
+    assert response is expected
+
+
 def test_generation_ids_flow_from_llm_middleware_to_post_tool_call():
     hermes_plugin._GENERATION_IDS_BY_API_REQUEST.clear()
 
