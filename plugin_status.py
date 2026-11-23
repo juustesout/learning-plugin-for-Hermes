@@ -20,8 +20,16 @@ SELFTEST_TOOL = "mcp_webclaw_webclaw_scrape"
 SELFTEST_URL = "https://example.com/selftest"
 
 
-def _hooks_state() -> dict[str, bool]:
+def _hooks_state() -> dict[str, Any]:
     return dict(getattr(hermes_plugin, "HOOKS_REGISTERED", {}) or {})
+
+
+def _hook_label(value: Any) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "unknown"
 
 
 def _file_meta(path: str) -> tuple[bool, int, float]:
@@ -123,8 +131,10 @@ def collect_status() -> dict[str, Any]:
         last_error = "; ".join(errors)
     return {
         "hooks": {
-            "pre_tool_call": bool(hooks.get("pre_tool_call")),
-            "post_tool_call": bool(hooks.get("post_tool_call")),
+            "pre_tool_call": hooks.get("pre_tool_call"),
+            "post_tool_call": hooks.get("post_tool_call"),
+            "pre_llm_call": hooks.get("pre_llm_call"),
+            "llm_execution_middleware": hooks.get("llm_execution_middleware"),
         },
         "features": {
             "import_source": source or "none",
@@ -148,12 +158,16 @@ def format_status(data: dict[str, Any] | None = None) -> str:
     log = info["opslog"]
     gate = info["gate"]
     state = "open" if gate.get("open") else "closed"
-    pre = "yes" if hooks.get("pre_tool_call") else "no"
-    post = "yes" if hooks.get("post_tool_call") else "no"
+    pre = _hook_label(hooks.get("pre_tool_call"))
+    post = _hook_label(hooks.get("post_tool_call"))
+    llm = _hook_label(hooks.get("pre_llm_call"))
+    mid = _hook_label(hooks.get("llm_execution_middleware"))
     return (
         f"hooks:\n"
         f"  pre_tool_call: {pre}\n"
         f"  post_tool_call: {post}\n"
+        f"  pre_llm_call: {llm}\n"
+        f"  llm_execution_middleware: {mid}\n"
         f"features:\n"
         f"  import_source: {feats.get('import_source')}\n"
         f"  last_error: {feats.get('last_error')}\n"
