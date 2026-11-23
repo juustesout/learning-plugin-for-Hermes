@@ -41,6 +41,7 @@ def test_register_hook_and_cli():
         ("pre_tool_call", hermes_plugin.on_pre_tool_call),
         ("post_tool_call", hermes_plugin.on_post_tool_call),
         ("post_api_request", hermes_plugin.on_post_api_request),
+        ("pre_llm_call", hermes_plugin.on_pre_llm_call),
     ]
     assert len(ctx.cli) == 1
     assert ctx.cli[0]["name"] == "agent-learning"
@@ -55,6 +56,7 @@ def test_register_without_cli_command():
     assert ctx.hooks[0][0] == "pre_tool_call"
     assert ctx.hooks[1][0] == "post_tool_call"
     assert ctx.hooks[2][0] == "post_api_request"
+    assert ctx.hooks[3][0] == "pre_llm_call"
     assert ctx.cli == []
     assert ctx.middleware == [("llm_execution", hermes_plugin.on_llm_execution_middleware)]
 
