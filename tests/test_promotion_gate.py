@@ -66,6 +66,40 @@ def test_16_of_20_still_closed_even_with_contrast_floor():
     assert "wilson_not_separated" in result["reason"]
 
 
+def test_n_contrast_is_total_not_per_arm():
+    assert promotion_gate.MIN_N_CONTRAST == 1500
+    total = _open_case(n_contrast=1500, n_l=2000, n_b=2000)
+    result = promotion_gate.evaluate(total)
+    assert result["open"] is True
+    assert result["n_contrast"] == 1500
+    half = promotion_gate.evaluate(_open_case(n_contrast=749))
+    assert half["open"] is False
+    assert "n_contrast<1500" in half["reason"]
+
+
+def test_wilson_5pp_at_1500_per_arm_separates_on_full_floats():
+    l_low, _, _ = promotion_gate._wilson_interval(788, 1500)
+    _, _, b_high = promotion_gate._wilson_interval(712, 1500)
+    assert l_low is not None and b_high is not None
+    assert round(l_low, 6) == 0.50003
+    assert round(b_high, 6) == 0.49997
+    assert l_low > b_high
+    assert round(l_low, 4) == round(b_high, 4) == 0.5
+    result = promotion_gate.evaluate(
+        _open_case(
+            n=3000,
+            n_l=1500,
+            n_b=1500,
+            successes_l=788,
+            successes_b=712,
+            n_contrast=1500,
+        )
+    )
+    assert result["open"] is True
+    assert result["wilson_l_low"] == 0.50003
+    assert result["wilson_b_high"] == 0.49997
+
+
 def test_open_when_wilson_intervals_do_not_overlap():
     result = promotion_gate.evaluate(_open_case())
     assert result["open"] is True
