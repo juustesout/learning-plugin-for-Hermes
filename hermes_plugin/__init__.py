@@ -38,11 +38,12 @@ except Exception:  # pragma: no cover - fail-open when kernel is absent
 
 PLUGIN_NAME = "agent-learning"
 DEFAULT_TASK_ID = "hermes-tool"
-HOOKS_REGISTERED: dict[str, bool] = {
-    "pre_tool_call": False,
-    "post_tool_call": False,
-    "post_api_request": False,
-    "llm_execution_middleware": False,
+HOOKS_REGISTERED: dict[str, bool | None] = {
+    "pre_tool_call": None,
+    "post_tool_call": None,
+    "post_api_request": None,
+    "pre_llm_call": None,
+    "llm_execution_middleware": None,
 }
 _SUMMARY_MAX = 500
 _TARGET_MAX = 300

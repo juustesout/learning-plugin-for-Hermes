@@ -20,6 +20,28 @@ def _bind(tmp_path, monkeypatch):
     return store
 
 
+def test_unregistered_hooks_are_unknown_not_no(tmp_path, monkeypatch):
+    _bind(tmp_path, monkeypatch)
+    for name in list(hermes_plugin.HOOKS_REGISTERED):
+        hermes_plugin.HOOKS_REGISTERED[name] = None
+    text = plugin_status.format_status()
+    assert "pre_tool_call: unknown" in text
+    assert "post_tool_call: unknown" in text
+    assert "pre_llm_call: unknown" in text
+    assert "llm_execution_middleware: unknown" in text
+    assert "pre_tool_call: no" not in text
+
+
+def test_no_only_when_hook_is_actually_false(tmp_path, monkeypatch):
+    _bind(tmp_path, monkeypatch)
+    for name in list(hermes_plugin.HOOKS_REGISTERED):
+        hermes_plugin.HOOKS_REGISTERED[name] = None
+    hermes_plugin.HOOKS_REGISTERED["pre_tool_call"] = False
+    text = plugin_status.format_status()
+    assert "pre_tool_call: no" in text
+    assert "post_tool_call: unknown" in text
+
+
 def test_status_is_plain_text_not_json(tmp_path, monkeypatch):
     _bind(tmp_path, monkeypatch)
     text = plugin_status.format_status()
@@ -27,6 +49,7 @@ def test_status_is_plain_text_not_json(tmp_path, monkeypatch):
     assert "hooks:" in text
     assert "pre_tool_call:" in text
     assert "post_tool_call:" in text
+    assert "pre_llm_call:" in text
     assert "import_source:" in text
     assert "eligible_scrape:" in text
     assert "consolidate:" in text
@@ -37,11 +60,13 @@ def test_status_shows_hooks_after_register(tmp_path, monkeypatch):
     _bind(tmp_path, monkeypatch)
     hermes_plugin.HOOKS_REGISTERED["pre_tool_call"] = False
     hermes_plugin.HOOKS_REGISTERED["post_tool_call"] = False
+    hermes_plugin.HOOKS_REGISTERED["pre_llm_call"] = False
     ctx = FakeCtx()
     hermes_plugin.register(ctx)
     text = plugin_status.format_status()
     assert "pre_tool_call: yes" in text
     assert "post_tool_call: yes" in text
+    assert "llm_execution_middleware: yes" in text
 
 
 def test_status_cli_command_registered():
