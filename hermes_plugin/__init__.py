@@ -434,6 +434,11 @@ def _handle_cli(args) -> None:
 
         print(plugin_status.format_selftest(), end="")
         return
+    if cmd == "report":
+        import week_report
+
+        print(week_report.format_report(), end="")
+        return
     if opslog is None:
         print("opslog unavailable", file=sys.stderr)
         return
@@ -484,7 +489,7 @@ def _handle_cli(args) -> None:
             return
     print(
         "Usage: hermes agent-learning "
-        "<stats|count|tail|health|status|selftest|pool|select|baseline|record-post>"
+        "<stats|count|tail|health|status|selftest|report|pool|select|baseline|record-post>"
     )
 
 
@@ -495,6 +500,7 @@ def _setup_argparse(subparser) -> None:
     subs.add_parser("health", help="Show opslog write/error health")
     subs.add_parser("status", help="Show hooks, features, opslog, gate")
     subs.add_parser("selftest", help="Run hooks against a temporary store")
+    subs.add_parser("report", help="Show weekly ITT / gate report")
     p_tail = subs.add_parser("tail", help="Show recent operations")
     p_tail.add_argument("-n", type=int, default=10)
     p_pool = subs.add_parser("pool", help="Import a pool.v1 candidate file")
