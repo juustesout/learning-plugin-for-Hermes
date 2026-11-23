@@ -353,22 +353,86 @@ def _extract_generation_ids_from_llm_response(response: Any) -> list[str]:
     return sorted(found)
 
 
+def _decision_join_key(kwargs: dict[str, Any], tool_name: str = "") -> str:
+    try:
+        import decision_record
+    except Exception:
+        return ""
+    return decision_record.join_key(
+        session_id=str(kwargs.get("session_id") or ""),
+        conversation_id=str(kwargs.get("conversation_id") or ""),
+        tool_call_id=str(kwargs.get("tool_call_id") or ""),
+        turn_id=str(kwargs.get("turn_id") or ""),
+        tool_name=tool_name,
+    )
+
+
+def _open_decision_record(kwargs: dict[str, Any], *, tool_name: str, shadow_row: Any = None) -> None:
+    try:
+        import decision_record
+    except Exception:
+        return
+    features = None
+    advised = ""
+    task = task_id_for_tool(tool_name)
+    if isinstance(shadow_row, dict):
+        features = shadow_row.get("context_features")
+        advised = str(shadow_row.get("advised_tool") or "")
+        task = str(shadow_row.get("task_id") or task)
+    if features is None:
+        feature_register, _source, _errors = _load_features()
+        if feature_register is not None:
+            raw_target = ""
+            args = kwargs.get("args")
+            if isinstance(args, dict):
+                for key in _TARGET_KEYS:
+                    value = args.get(key)
+                    if isinstance(value, str) and value.strip():
+                        raw_target = value.strip()
+                        break
+            try:
+                features = feature_register.pre_call_features(raw_target, action_id=tool_name)
+            except Exception:
+                features = None
+    decision_record.open_decision(
+        join_key_value=_decision_join_key(kwargs, tool_name),
+        requested_tool=tool_name,
+        advised_tool=advised,
+        context_features=features,
+        task_id=task,
+    )
+
+
+def _attach_decision_technical(kwargs: dict[str, Any], *, tool_name: str) -> None:
+    try:
+        import decision_record
+    except Exception:
+        return
+    decision_record.attach_technical(
+        join_key_value=_decision_join_key(kwargs, tool_name),
+        status=str(kwargs.get("status") or ""),
+        chosen_tool=tool_name,
+    )
+
+
 def on_pre_tool_call(**kwargs) -> None:
     try:
-        if shadow_policy is None:
-            return None
         name = str(kwargs.get("tool_name") or "").strip()
-        shadow_policy.record_pre(
-            task_id=task_id_for_tool(name),
-            tool_name=name,
-            args=kwargs.get("args"),
-            session_id=str(kwargs.get("session_id") or ""),
-            conversation_id=str(kwargs.get("conversation_id") or ""),
-            turn_id=str(kwargs.get("turn_id") or ""),
-            tool_call_id=str(kwargs.get("tool_call_id") or ""),
-        )
-    except Exception as exc:
-        _health_error(exc)
+        shadow_row = None
+        if shadow_policy is not None:
+            shadow_row = shadow_policy.record_pre(
+                task_id=task_id_for_tool(name),
+                tool_name=name,
+                args=kwargs.get("args"),
+                session_id=str(kwargs.get("session_id") or ""),
+                conversation_id=str(kwargs.get("conversation_id") or ""),
+                turn_id=str(kwargs.get("turn_id") or ""),
+                tool_call_id=str(kwargs.get("tool_call_id") or ""),
+            )
+        if name:
+            _open_decision_record(kwargs, tool_name=name, shadow_row=shadow_row)
+    except Exception as ext:
+        _health_error(ext)
     return None
 
 
@@ -419,6 +483,12 @@ def on_post_tool_call(**kwargs) -> None:
             )
     except Exception as exc:
         _health_error(exc)
+    try:
+        name = str(kwargs.get("tool_name") or "").strip()
+        if name:
+            _attach_decision_technical(kwargs, tool_name=name)
+    except Exception as exc:
+        _health_error(exc)
     return None
 
 
@@ -433,6 +503,16 @@ def _handle_cli(args) -> None:
         import plugin_status
 
         print(plugin_status.format_selftest(), end="")
+        return
+    if cmd == "record-outcome":
+        import decision_record
+
+        result = decision_record.record_outcome(
+            decision_id=str(getattr(args, "decision_id", "") or ""),
+            level=getattr(args, "level", None),
+            status=getattr(args, "status", None),
+        )
+        print(json.dumps(result, indent=2, default=str))
         return
     if opslog is None:
         print("opslog unavailable", file=sys.stderr)
@@ -484,7 +564,7 @@ def _handle_cli(args) -> None:
             return
     print(
         "Usage: hermes agent-learning "
-        "<stats|count|tail|health|status|selftest|pool|select|baseline|record-post>"
+        "<stats|count|tail|health|status|selftest|record-outcome|pool|select|baseline|record-post>"
     )
 
 
@@ -495,6 +575,10 @@ def _setup_argparse(subparser) -> None:
     subs.add_parser("health", help="Show opslog write/error health")
     subs.add_parser("status", help="Show hooks, features, opslog, gate")
     subs.add_parser("selftest", help="Run hooks against a temporary store")
+    p_out = subs.add_parser("record-outcome", help="Record a later outcome on a decision_id")
+    p_out.add_argument("--decision-id", required=True)
+    p_out.add_argument("--level", required=True)
+    p_out.add_argument("--status", required=True)
     p_tail = subs.add_parser("tail", help="Show recent operations")
     p_tail.add_argument("-n", type=int, default=10)
     p_pool = subs.add_parser("pool", help="Import a pool.v1 candidate file")
