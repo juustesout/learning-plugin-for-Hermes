@@ -162,14 +162,21 @@ def normalize_pool(pool: Iterable[dict], posted_ids: Optional[Iterable[str]] = N
     posted = {str(x) for x in (posted_ids or []) if x}
     out = []
     seen = set()
+    seen_urls = set()
     for i, item in enumerate(pool or []):
         if not isinstance(item, dict):
             continue
         item_id = str(item.get("id") or "").strip()
         if not item_id or item_id in posted or item_id in seen:
             continue
+        item_url = blind_label._canonical_url(item.get("canonical_url") or item.get("url"))
+        if item_url and item_url in seen_urls:
+            continue
         row = dict(item)
         row["id"] = item_id
+        if item_url:
+            row["canonical_url"] = item_url
+            seen_urls.add(item_url)
         if row.get("source_rank") is None:
             row["source_rank"] = i
         seen.add(item_id)

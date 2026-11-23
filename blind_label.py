@@ -396,24 +396,12 @@ _STRIP_QUERY = frozenset(
 
 
 def _canonical_url(url: Any) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        return ""
-    try:
-        parts = urllib.parse.urlsplit(raw)
-    except Exception:
-        return raw
-    if parts.scheme not in {"http", "https"} or not parts.netloc:
-        return raw
-    query = [
-        (k, v)
-        for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
-        if k.lower() not in _STRIP_QUERY
-    ]
-    path = (parts.path or "/").rstrip("/") or "/"
-    return urllib.parse.urlunsplit(
-        (parts.scheme.lower(), parts.netloc.lower(), path, urllib.parse.urlencode(query), "")
-    )
+    from workflow_identity import canonical_url
+
+    cleaned = canonical_url(url)
+    if cleaned:
+        return cleaned
+    return str(url or "").strip()
 
 
 def public_item(item: dict) -> dict:
@@ -530,6 +518,11 @@ def enqueue_item(item: dict) -> dict:
 def enqueue_pool(pool: Iterable[dict], *, run_id: str, sample: bool = True) -> dict:
     queued = _ids(load_queue())
     known = _ids(load_candidates()) | _ids(load_items())
+    known_urls = set()
+    for row in list(load_candidates()) + list(load_items()):
+        cu = _canonical_url(row.get("canonical_url") or row.get("url"))
+        if cu:
+            known_urls.add(cu)
     added = 0
     sampled = 0
     skipped = 0
@@ -547,15 +540,19 @@ def enqueue_pool(pool: Iterable[dict], *, run_id: str, sample: bool = True) -> d
         if not item_id or not title or not url:
             skipped += 1
             continue
-        if item_id in known:
+        item_url = _canonical_url(url)
+        if item_id in known or (item_url and item_url in known_urls):
             skipped += 1
             continue
         known.add(item_id)
+        if item_url:
+            known_urls.add(item_url)
         card = {
             **public_item(raw),
             "run_id": str(run_id),
             "record": POOL_RECORD,
             "queued_at": now,
+            "canonical_url": item_url,
         }
         for key in CANDIDATE_FEATURE_FIELDS:
             if key in raw and raw[key] is not None:

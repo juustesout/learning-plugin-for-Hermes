@@ -6,12 +6,12 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 import env_setup  # noqa: F401
 import blind_label
 import hn_ranker
-from workflow_identity import article_id
+from workflow_identity import article_id, canonical_url
 
 SCHEMA = "pool.v1"
 WORKFLOW = blind_label.WORKFLOW
@@ -77,38 +77,13 @@ def _require_str(row: dict, key: str, *, allow_empty: bool = False) -> str:
     return text
 
 
-_STRIP_QUERY = frozenset(
-    {
-        "token",
-        "access_token",
-        "api_key",
-        "key",
-        "secret",
-        "auth",
-        "session",
-        "utm_source",
-        "utm_medium",
-        "utm_campaign",
-        "utm_term",
-        "utm_content",
-        "fbclid",
-        "gclid",
-    }
-)
-
-
 def strip_url(url: str) -> str:
-    parts = urlsplit(str(url or "").strip())
+    raw = str(url or "").strip()
+    cleaned = canonical_url(raw)
+    parts = urlsplit(cleaned or raw)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise PoolError("url must be http(s)")
-    query = [
-        (key, value)
-        for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        if key.lower() not in _STRIP_QUERY
-    ]
-    return urlunsplit(
-        (parts.scheme, parts.netloc.lower(), parts.path, urlencode(query), "")
-    )
+    return cleaned or raw
 
 
 def _parse_iso(value: Any, *, allow_null: bool = False) -> Optional[str]:
@@ -258,6 +233,9 @@ def parse_pool_file(path: Path) -> tuple[dict, list[dict]]:
 
 
 def _canonical_url(value: Any) -> str:
+    cleaned = canonical_url(value)
+    if cleaned:
+        return cleaned
     try:
         return strip_url(str(value or ""))
     except PoolError:

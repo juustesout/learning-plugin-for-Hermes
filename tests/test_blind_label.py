@@ -273,3 +273,33 @@ def test_posted_item_already_queued_from_pool_is_not_double_sampled(tmp_path, mo
     assert result["sampled"] is True
     assert len(blind_label.load_queue()) == 1
     assert len(blind_label.load_items()) == 1
+
+WEEKEND_URLS = (
+    "https://example.com/story/?utm_source=hn",
+    "https://EXAMPLE.com/story",
+    "https://example.com/story?fbclid=abc",
+    "https://example.com/story/",
+    "https://example.com/story/?token=secret",
+)
+
+
+def _weekend_pool() -> list[dict]:
+    return [
+        _pool_item(f"hn-{i}", url=url, hn_id=i)
+        for i, url in enumerate(WEEKEND_URLS, start=1)
+    ]
+
+
+def test_weekend_fixture_one_url_five_ids_enqueues_once(tmp_path, monkeypatch):
+    _isolate(tmp_path, monkeypatch)
+    pool = _weekend_pool()
+    assert len({row["id"] for row in pool}) == 5
+    result = blind_label.enqueue_pool(pool, run_id="weekend")
+    assert result["added"] == 1
+    assert result["sampled"] == 1
+    assert result["skipped"] == 4
+    assert len(blind_label.load_candidates()) == 1
+    assert len(blind_label.load_queue()) == 1
+    pending = blind_label.unlabeled_queue()
+    assert len(pending) == 1
+    assert blind_label._canonical_url(pending[0]["url"]) == "https://example.com/story"
