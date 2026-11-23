@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -273,3 +275,40 @@ def test_posted_item_already_queued_from_pool_is_not_double_sampled(tmp_path, mo
     assert result["sampled"] is True
     assert len(blind_label.load_queue()) == 1
     assert len(blind_label.load_items()) == 1
+
+def test_jsonl_cache_survives_frozen_mtime_on_append(tmp_path, monkeypatch):
+    evidence = _isolate(tmp_path, monkeypatch)
+    evidence.mkdir(parents=True, exist_ok=True)
+    path = evidence / "items.jsonl"
+    blind_label._JSONL_CACHE.clear()
+    first = {"id": "keep-a", "title": "one"}
+    path.write_text(json.dumps(first) + "\n", encoding="utf-8")
+    assert blind_label._read_jsonl(path)[0]["id"] == "keep-a"
+    stamp = path.stat().st_mtime_ns
+    blind_label._append_jsonl(path, {"id": "keep-b", "title": "two"})
+    os.utime(path, ns=(stamp, stamp))
+    rows = blind_label._read_jsonl(path)
+    assert [row["id"] for row in rows] == ["keep-a", "keep-b"]
+
+
+def test_jsonl_cache_rejects_same_size_rewrite_with_frozen_mtime(tmp_path, monkeypatch):
+    evidence = _isolate(tmp_path, monkeypatch)
+    evidence.mkdir(parents=True, exist_ok=True)
+    path = evidence / "items.jsonl"
+    blind_label._JSONL_CACHE.clear()
+    first = {"id": "aa", "title": "one"}
+    second = {"id": "bb", "title": "one"}
+    payload_a = json.dumps(first) + "\n"
+    payload_b = json.dumps(second) + "\n"
+    assert len(payload_a) == len(payload_b)
+    path.write_text(payload_a, encoding="utf-8")
+    assert blind_label._read_jsonl(path)[0]["id"] == "aa"
+    stamp = path.stat().st_mtime_ns
+    path.write_text(payload_b, encoding="utf-8")
+    os.utime(path, ns=(stamp, stamp))
+    assert path.stat().st_size == len(payload_a)
+    assert path.stat().st_mtime_ns == stamp
+    rows = blind_label._read_jsonl(path)
+    assert rows[0]["id"] == "bb"
+
+
