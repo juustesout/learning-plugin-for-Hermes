@@ -1,18 +1,40 @@
 """Promotion gate: learner advice is off until L beats B on contrast.
 
-Decision rule (fixed): Wilson 95 percent intervals on arm success rates must
-not overlap (wilson_l_low > wilson_b_high). Chosen instead of a two-proportion
-z-test so the gate reuses decision_stats.wilson_interval and stays conservative
-near alpha=0.05 without a new dependency.
+Decision rule (fixed): Wilson 95 percent intervals on ITT arm success rates
+must not overlap (wilson_l_low > wilson_b_high). Chosen instead of a
+two-proportion z-test so the gate reuses decision_stats.wilson_interval
+(z=1.96) and stays conservative near alpha=0.05 without a new dependency.
 
-A 5 percentage-point gap is Wilson-separable at p approximately 0.5 only once
-each arm has n>=1500 (first integer n where 788/1500 vs 712/1500 has
-wilson_l_low > wilson_b_high). Contrast decisions are the ones that can differ
-by arm, so MIN_N_CONTRAST=1500. MIN_N=12 for the total ITT count is unchanged
-and is not a substitute for that contrast floor.
+Wilson formula, z=1.96, n=arm ITT count, p=successes/n:
 
-16/20 vs 10/20 (margin 0.30) is not separable: L_low=0.584 overlaps B_high=0.701.
-That case must keep the gate closed.
+    denom  = 1 + z^2 / n
+    center = (p + z^2 / (2n)) / denom
+    margin = (z / denom) * sqrt(p(1-p)/n + z^2 / (4 n^2))
+    low    = max(0, center - margin)
+    high   = min(1, center + margin)
+
+Compare the unrounded floats. Do not round to 4 decimals first.
+
+n_contrast is a TOTAL count: number of decisions where chosen_id !=
+baseline_pick_id. It is not per arm. Wilson uses n_l and n_b (ITT per arm).
+MIN_N_CONTRAST=1500 is a floor on that total. MIN_N=12 is the total ITT
+count and is not a substitute for the contrast floor.
+
+A 5 percentage-point gap at p approximately 0.5 is first Wilson-separable
+once each ITT arm has n=1500 (788/1500 vs 712/1500):
+
+    L_low  = 0.500030
+    B_high = 0.499970
+    gap    = 6.0e-5
+
+Rounded to 4 decimals both bounds print as 0.5000; the gate still opens
+because it compares full floats. The same 5pp split first reaches
+|z|>=1.96 on a two-proportion z-test near n=742/arm (390/742 vs 352/742,
+z approximately 1.973) while Wilson non-overlap needs n=1500/arm, about
+2.0 times that z-test n. CI non-overlap is the stricter rule on purpose.
+
+16/20 vs 10/20 (margin 0.30) is not separable: L_low=0.584 overlaps
+B_high=0.701. That case must keep the gate closed.
 """
 
 from __future__ import annotations
