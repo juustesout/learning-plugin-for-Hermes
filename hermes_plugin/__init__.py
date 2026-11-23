@@ -42,6 +42,7 @@ HOOKS_REGISTERED: dict[str, bool] = {
     "pre_tool_call": False,
     "post_tool_call": False,
     "post_api_request": False,
+    "pre_llm_call": False,
     "llm_execution_middleware": False,
 }
 _SUMMARY_MAX = 500
@@ -383,6 +384,47 @@ def on_post_api_request(**kwargs) -> None:
     return None
 
 
+def on_pre_llm_call(*args, **kwargs):
+    messages = kwargs.get("messages")
+    if messages is None and args:
+        messages = args[0]
+    original = messages
+    try:
+        import advice_hook
+        import decision_stats
+
+        if not advice_hook.enabled():
+            return original
+        try:
+            import promotion_gate
+            import week_report
+
+            report = week_report.build()
+            gate = report.get("gate") or promotion_gate.evaluate({"n": 0})
+        except Exception:
+            gate = {"open": False, "reason": "gate_unavailable"}
+        advice = None
+        if gate.get("open"):
+            try:
+                advice = decision_stats.build_decision_advice(
+                    task_id="choose-scrape-strategy",
+                    options=["use_webclaw_scrape", "use_jina_reader", "use_browser"],
+                )
+            except Exception:
+                advice = None
+        return advice_hook.apply_advice(
+            original,
+            gate=gate,
+            advice=advice,
+            session_id=str(kwargs.get("session_id") or ""),
+            turn_id=str(kwargs.get("turn_id") or ""),
+            api_request_id=str(kwargs.get("api_request_id") or ""),
+        )
+    except Exception as exc:
+        _health_error(exc)
+        return original
+
+
 def on_llm_execution_middleware(request, next_call, **kwargs):
     response = next_call(request)
     try:
@@ -517,12 +559,14 @@ def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", on_pre_tool_call)
     ctx.register_hook("post_tool_call", on_post_tool_call)
     ctx.register_hook("post_api_request", on_post_api_request)
+    ctx.register_hook("pre_llm_call", on_pre_llm_call)
     register_middleware = getattr(ctx, "register_middleware", None)
     if register_middleware is not None:
         register_middleware("llm_execution", on_llm_execution_middleware)
     HOOKS_REGISTERED["pre_tool_call"] = True
     HOOKS_REGISTERED["post_tool_call"] = True
     HOOKS_REGISTERED["post_api_request"] = True
+    HOOKS_REGISTERED["pre_llm_call"] = True
     HOOKS_REGISTERED["llm_execution_middleware"] = register_middleware is not None
     register_cli = getattr(ctx, "register_cli_command", None)
     if register_cli is not None:
