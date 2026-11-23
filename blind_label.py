@@ -23,6 +23,11 @@ from typing import Any, Iterable, Optional
 import env_setup  # noqa: F401
 import opslog
 
+try:
+    import confound
+except Exception:  # pragma: no cover - optional until P5 lands
+    confound = None
+
 WORKFLOW = "hn-aidevforum"
 SUCCESS_DEFINITION = "2026-11-17.3"
 SAMPLE_RATE = 0.2
@@ -916,6 +921,13 @@ def audit(*, expected_posts: int = EXPECTED_POSTS_PER_DAY, hours: int = 24, view
         alarms.append("enqueue_lag")
     ranker_alarms, overlap, balance = ranker_health_alarms(decisions, view)
     alarms.extend(ranker_alarms)
+    confound_status = (
+        confound.confound_report(decisions)
+        if confound is not None
+        else {"ok": True, "alarms": []}
+    )
+    if not confound_status.get("ok"):
+        alarms.extend(list(confound_status.get("alarms") or []))
     payload = {
         "ok": not alarms,
         "hours": hours,
@@ -931,6 +943,7 @@ def audit(*, expected_posts: int = EXPECTED_POSTS_PER_DAY, hours: int = 24, view
         "posted_without_decision": missing_decision,
         "overlap": overlap,
         "balance": balance,
+        "confound": confound_status,
         "arm_balance": arm_balance(decisions),
         "view": view,
         "alarms": alarms,
