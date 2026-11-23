@@ -371,12 +371,12 @@ def record_pre(
     conversation_id: str = "",
     turn_id: str = "",
     tool_call_id: str = "",
-) -> None:
+) -> Optional[dict]:
     if not shadow_enabled():
-        return
+        return None
     name = str(tool_name or "").strip()
     if not name:
-        return
+        return None
     tid = str(task_id or "").strip() or "hermes-tool"
     snapshot = cached_snapshot(tid)
     now = datetime.now(timezone.utc).isoformat()
@@ -392,29 +392,28 @@ def record_pre(
         turn_id=turn_id,
         tool_name=name,
     )
-    _stash(
-        key,
-        {
-            "record": "decision",
-            "source": SOURCE,
-            "timestamp": now,
-            "join_key": key,
-            "session_id": str(session_id or ""),
-            "conversation_id": str(conversation_id or ""),
-            "turn_id": str(turn_id or ""),
-            "tool_call_id": str(tool_call_id or ""),
-            "requested_tool": name,
-            "advised_tool": advice.get("advised_tool") or "",
-            "probabilities": advice.get("probabilities") or {},
-            "context_features": used,
-            "feature_track": track,
-            "target": target,
-            "task_id": tid,
-            "policy_id": advice.get("policy_id") or "",
-            "policy_version": advice.get("policy_version"),
-            "policy_kind": advice.get("policy_kind") or "",
-        },
-    )
+    row = {
+        "record": "decision",
+        "source": SOURCE,
+        "timestamp": now,
+        "join_key": key,
+        "session_id": str(session_id or ""),
+        "conversation_id": str(conversation_id or ""),
+        "turn_id": str(turn_id or ""),
+        "tool_call_id": str(tool_call_id or ""),
+        "requested_tool": name,
+        "advised_tool": advice.get("advised_tool") or "",
+        "probabilities": advice.get("probabilities") or {},
+        "context_features": used,
+        "feature_track": track,
+        "target": target,
+        "task_id": tid,
+        "policy_id": advice.get("policy_id") or "",
+        "policy_version": advice.get("policy_version"),
+        "policy_kind": advice.get("policy_kind") or "",
+    }
+    _stash(key, row)
+    return row
 
 
 def _html_from_result(result: Any) -> str:
