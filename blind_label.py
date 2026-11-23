@@ -312,12 +312,25 @@ def blind_view(item: dict) -> dict:
     return view
 
 
-_JSONL_CACHE: dict[str, tuple[int, int, list[dict]]] = {}
+_JSONL_CACHE: dict[str, tuple[int, int, bytes, bytes, list[dict]]] = {}
+_JSONL_FP_BYTES = 64
 
 
 def _stat_key(path: Path) -> tuple[int, int]:
     st = path.stat()
     return (int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))), int(st.st_size))
+
+
+def _file_fingerprint(path: Path, size: int) -> tuple[bytes, bytes]:
+    if size <= 0:
+        return b"", b""
+    with path.open("rb") as handle:
+        head = handle.read(_JSONL_FP_BYTES)
+        if size <= _JSONL_FP_BYTES:
+            return head, b""
+        handle.seek(max(size - _JSONL_FP_BYTES, 0))
+        tail = handle.read(_JSONL_FP_BYTES)
+    return head, tail
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -326,9 +339,16 @@ def _read_jsonl(path: Path) -> list[dict]:
         _JSONL_CACHE.pop(key, None)
         return []
     stamp = _stat_key(path)
+    fingerprint = _file_fingerprint(path, stamp[1])
     cached = _JSONL_CACHE.get(key)
-    if cached and cached[0] == stamp[0] and cached[1] == stamp[1]:
-        return list(cached[2])
+    if (
+        cached
+        and cached[0] == stamp[0]
+        and cached[1] == stamp[1]
+        and cached[2] == fingerprint[0]
+        and cached[3] == fingerprint[1]
+    ):
+        return list(cached[4])
     rows = []
     with path.open(encoding="utf-8") as f:
         for line in f:
@@ -339,7 +359,7 @@ def _read_jsonl(path: Path) -> list[dict]:
                 rows.append(json.loads(raw))
             except json.JSONDecodeError:
                 continue
-    _JSONL_CACHE[key] = (stamp[0], stamp[1], rows)
+    _JSONL_CACHE[key] = (stamp[0], stamp[1], fingerprint[0], fingerprint[1], rows)
     return list(rows)
 
 
@@ -361,13 +381,20 @@ def _append_jsonl_many(path: Path, rows: Iterable[dict]) -> None:
         cached = _JSONL_CACHE.get(key)
         try:
             stamp = _stat_key(path)
+            fingerprint = _file_fingerprint(path, stamp[1])
         except OSError:
             _JSONL_CACHE.pop(key, None)
             return
         if cached:
-            merged = list(cached[2])
+            merged = list(cached[4])
             merged.extend(payloads)
-            _JSONL_CACHE[key] = (stamp[0], stamp[1], merged)
+            _JSONL_CACHE[key] = (
+                stamp[0],
+                stamp[1],
+                fingerprint[0],
+                fingerprint[1],
+                merged,
+            )
         else:
             _JSONL_CACHE.pop(key, None)
 
