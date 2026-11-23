@@ -103,6 +103,8 @@ def test_status_cli_command_registered():
     setup(parser)
     assert "status" in parser.subs.names
     assert "selftest" in parser.subs.names
+    assert "record-outcome" in parser.subs.names
+    assert "report" in parser.subs.names
     assert "pool" in parser.subs.names
     assert "select" in parser.subs.names
     assert "baseline" in parser.subs.names

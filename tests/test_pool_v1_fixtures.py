@@ -45,14 +45,17 @@ def test_fixture_sim_is_refused(tmp_path, monkeypatch):
     assert blind_label.load_candidates() == []
 
 
-def test_fixture_weekend_five_ids_import_on_main(tmp_path, monkeypatch):
+def test_fixture_weekend_collapses_five_ids_to_one_url(tmp_path, monkeypatch):
     _isolate(tmp_path, monkeypatch)
     result = pool_v1.import_pool(_copy(tmp_path, "weekend-dupes.jsonl"))
     assert result["ok"] is True
+    assert result["added"] == 1
     stored = blind_label.load_candidates()
-    assert len(stored) == 5
-    urls = {row["url"] for row in stored}
-    assert "https://example.com/story" in urls or any("example.com/story" in u for u in urls)
+    assert len(stored) == 1
+    assert stored[0]["url"] == "https://example.com/story"
+    selected = pool_v1.select_for_run("fixture-weekend")
+    assert selected["status"] == "short"
+    assert selected["items"] == []
 
 
 def test_fixture_short_selects_nothing(tmp_path, monkeypatch):
