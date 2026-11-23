@@ -1,0 +1,6 @@
+{"schema": "pool.v1", "run_id": "fixture-weekend", "workflow": "hn-aidevforum", "source": "hn", "fetched_at": "2026-11-22T12:00:00+00:00", "producer": "fixture", "producer_version": "test"}
+{"id": "hn-401", "hn_id": 401, "title": "Same story 1", "url": "https://example.com/story/?utm_source=hn", "summary": "A", "posted_at": null, "source_rank": 0, "rag_score": 0.4, "hn_points": 1, "hn_comments": 0, "age_hours": 1.0}
+{"id": "hn-402", "hn_id": 402, "title": "Same story 2", "url": "https://EXAMPLE.com/story", "summary": "B", "posted_at": null, "source_rank": 1, "rag_score": 0.5, "hn_points": 1, "hn_comments": 0, "age_hours": 1.0}
+{"id": "hn-403", "hn_id": 403, "title": "Same story 3", "url": "https://example.com/story?fbclid=abc", "summary": "C", "posted_at": null, "source_rank": 2, "rag_score": 0.6, "hn_points": 1, "hn_comments": 0, "age_hours": 1.0}
+{"id": "hn-404", "hn_id": 404, "title": "Same story 4", "url": "https://example.com/story/", "summary": "D", "posted_at": null, "source_rank": 3, "rag_score": 0.7, "hn_points": 1, "hn_comments": 0, "age_hours": 1.0}
+{"id": "hn-405", "hn_id": 405, "title": "Same story 5", "url": "https://example.com/story/?token=secret", "summary": "E", "posted_at": null, "source_rank": 4, "rag_score": 0.8, "hn_points": 1, "hn_comments": 0, "age_hours": 1.0}

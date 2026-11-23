@@ -1,0 +1,4 @@
+{"schema": "pool.v1", "run_id": "fixture-valid", "workflow": "hn-aidevforum", "source": "hn", "fetched_at": "2026-11-22T12:00:00+00:00", "producer": "fixture", "producer_version": "test"}
+{"id": "hn-101", "hn_id": 101, "title": "Valid one", "url": "https://example.com/101?token=secret", "summary": "One", "posted_at": null, "source_rank": 0, "rag_score": 0.1, "hn_points": 10, "hn_comments": 2, "age_hours": 1.0}
+{"id": "hn-102", "hn_id": 102, "title": "Valid two", "url": "https://example.com/102?token=secret", "summary": "Two", "posted_at": null, "source_rank": 1, "rag_score": 0.2, "hn_points": 11, "hn_comments": 3, "age_hours": 2.0}
+{"id": "hn-103", "hn_id": 103, "title": "Valid three", "url": "https://example.com/103?token=secret", "summary": "Three", "posted_at": null, "source_rank": 2, "rag_score": 0.3, "hn_points": 12, "hn_comments": 1, "age_hours": 3.0}
